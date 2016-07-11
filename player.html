@@ -1,0 +1,475 @@
+<html>
+<head>
+<link href='https://fonts.googleapis.com/css?family=Montserrat|Open+Sans:400,600' rel='stylesheet' type='text/css'>
+<script src="https://code.jquery.com/jquery-3.1.0.min.js"></script>
+<script src="https://cdn.rawgit.com/msurguy/background-blur/master/dist/background-blur.min.js"></script>
+<script src="https://cdn.rawgit.com/ruidlopes/jquery-fullscreen/master/jquery.fullscreen.js"></script>
+<script src="https://cdn.rawgit.com/aadsm/jsmediatags/master/dist/jsmediatags.min.js"></script>
+<style>
+.content {
+	width: 510px;
+	height: 700px;
+	left:0; right:0;
+	top:0; bottom:0;
+	position: absolute;
+	margin:auto;
+	max-width:100%;
+	max-height:100%;
+	overflow:hidden;
+}
+	
+html,body
+{
+	height: 100%;
+	margin: 0;
+	padding: 0;
+	overflow:hidden;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	cursor:default;
+}
+.bg-blur {
+    z-index: -2;
+    position: absolute;
+    min-height: 100%;
+    height: auto;
+    display: block;
+    top: 0;
+    max-height: none;
+    left: -10%;
+    width: 120%;
+}
+.tinted-bg-overlay {
+    z-index: -1;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+	background: rgba(44, 62, 80,.3);
+}
+
+#mTagContainer{text-align: center;margin-bottom:20px;}
+.mTag{border: 1px solid hsl(0, 0%, 90%);padding-left: 7px;padding-right: 7px;padding-bottom: 2px;padding-top: 2px;width: auto;display:inline-block;border-radius: 3px;color: hsl(0, 0%, 90%);font-size:12px;font-family: 'Open Sans', sans-serif;}
+
+#mInfoContainer{text-align: center;}
+.mTitle{width: auto;color: hsl(0, 0%, 99%);font-size:30px;margin-top:15px;font-family: 'Open Sans', sans-serif;}
+.mArtist{width: auto;color: hsl(0, 0%, 99%);font-size:18px;font-family: 'Open Sans', sans-serif;}
+
+#mSeekerContainer{margin-top:30px;margin-left:auto;margin-right:auto;width:400px;height:6px;background-color:hsl(0,0%,80%);opacity:0.4;}
+#mSeeker{width:0px;height:6px;background-color:hsl(0,0%,100%);opacity:1;}
+
+#mArtContainer{height:500px;border: 5px solid rgba(0,0,0,0.1);}
+#mArtOverlay{z-index:3;position:absolute;width:500px;height:500px;opacity:0;background-color:#000;color:#FFF;font-size:120px;text-align:center;line-height: 500px;}
+#mArtBoxA{position:absolute;z-index:2;}
+#mArtBoxB{position:absolute;z-index:1;}
+</style>
+
+<script>
+var usemainimg = false;
+var jsmediatags = window.jsmediatags;
+var songnum = 0;
+var songs = [];
+
+$.fn.extend({
+    filedrop: function(options) {
+        var defaults = {
+            callback: null
+        }
+        options = $.extend(defaults, options)
+        return this.each(function() {
+            var files = []
+            var $this = $(this)
+            $this.bind('dragover dragleave', function(event) {
+                event.stopPropagation()
+                event.preventDefault()
+            })
+            $this.bind('drop', function(event) {
+                event.stopPropagation()
+                event.preventDefault()
+                files = event.originalEvent.target.files || event.originalEvent.dataTransfer.files
+                if (options.callback) {
+                    options.callback(new Blob([
+                        files[0]
+                    ], {
+                        type: 'audio/mp3'
+                    }))
+                }
+                return false
+            })
+        })
+    }
+})
+
+function getAverageRGB(imgEl) {
+    var blockSize = 5,
+        defaultRGB = {
+            r: 0,
+            g: 0,
+            b: 0
+        },
+        canvas = document.createElement('canvas'),
+        context = canvas.getContext && canvas.getContext('2d'),
+        data, width, height,
+        i = -4,
+        length,
+        rgb = {
+            r: 0,
+            g: 0,
+            b: 0
+        },
+        count = 0;
+    if (!context) {
+        return defaultRGB;
+    }
+    height = canvas.height = imgEl.naturalHeight || imgEl.offsetHeight || imgEl.height;
+    width = canvas.width = imgEl.naturalWidth || imgEl.offsetWidth || imgEl.width;
+    context.drawImage(imgEl, 0, 0);
+    try {
+        data = context.getImageData(0, 0, width, height);
+    } catch (e) {
+        return defaultRGB;
+    }
+    length = data.data.length;
+    while ((i += blockSize * 4) < length) {
+        ++count;
+        rgb.r += data.data[i];
+        rgb.g += data.data[i + 1];
+        rgb.b += data.data[i + 2];
+    }
+    rgb.r = ~~(rgb.r / count);
+    rgb.g = ~~(rgb.g / count);
+    rgb.b = ~~(rgb.b / count);
+    return rgb;
+}
+
+function changeSong(ArtURL, SongURL, title, artist) {
+    jsmediatags.read(SongURL, {
+        onSuccess: function(tag) {
+            var tags = tag.tags;
+            $(".mTitle").fadeOut(500, function() {
+                $(this).text(tags.title)
+            }).fadeIn(500);
+            $(".mArtist").fadeOut(500, function() {
+                $(this).text(tags.artist)
+            }).fadeIn(500);
+            var ArtURL2 = ArtURL;
+            var image = tags.picture;
+            if (image) {
+                var base64String = "";
+                for (var i = 0; i < image.data.length; i++) {
+                    base64String += String.fromCharCode(image.data[i]);
+                }
+                var base64 = "data:" + image.format + ";base64," + window.btoa(base64String);
+                var ArtURL2 = base64;
+            } else {
+                $('#blurredBackground').backgroundBlur("");
+                if (usemainimg) {
+                    usemainimg = false;
+                    $("#mArtBoxA").attr("src", "");
+                    $("#mArtBoxA").fadeIn(1000, reloadBorderColour());
+                } else {
+                    usemainimg = true;
+                    $("#mArtBoxB").attr("src", "");
+                    $("#mArtBoxA").fadeOut(1000, reloadBorderColour());
+                }
+                return;
+            }
+            if ($("#mArtBoxA").attr("src") == "" && $("#mArtBoxB").attr("src") == "") {
+                $('#blurredBackground').backgroundBlur(ArtURL2);
+                $("#mArtBoxB").attr("src", ArtURL2);
+                $("#mArtBoxB").fadeIn(1000, reloadBorderColour());
+            } else if (($("#mArtBoxA").attr("src") != ArtURL2 && !usemainimg) || (($("#mArtBoxB").attr("src") != ArtURL2 && usemainimg))) {
+                $('#blurredBackground').backgroundBlur(ArtURL2);
+                if (usemainimg) {
+                    usemainimg = false;
+                    $("#mArtBoxA").attr("src", ArtURL2);
+                    $("#mArtBoxA").fadeIn(1000, reloadBorderColour());
+                } else {
+                    usemainimg = true;
+                    $("#mArtBoxB").attr("src", ArtURL2);
+                    $("#mArtBoxA").fadeOut(1000, reloadBorderColour());
+                }
+            }
+        },
+        onError: function(error) {
+            if (title) {
+                $(".mTitle").fadeOut(500, function() {
+                    $(this).text(title)
+                }).fadeIn(500);
+            } else {
+                $(".mTitle").fadeOut(500, function() {
+                    $(this).text("Unknown")
+                }).fadeIn(500);
+            }
+            if (artist) {
+                $(".mArtist").fadeOut(500, function() {
+                    $(this).text(artist)
+                }).fadeIn(500);
+            } else {
+                $(".mArtist").fadeOut(500, function() {
+                    $(this).text("Unknown")
+                }).fadeIn(500);
+            }
+            if (ArtURL) {
+                if ($("#mArtBoxA").attr("src") == "" && $("#mArtBoxB").attr("src") == "") {
+                    $("#mArtBoxA").attr("src", ArtURL);
+                    $("#mArtBoxA").fadeIn(1000, reloadBorderColour());
+                } else if (($("#mArtBoxA").attr("src") != ArtURL && !usemainimg) || (($("#mArtBoxB").attr("src") != ArtURL && usemainimg))) {
+                    $('#blurredBackground').backgroundBlur(ArtURL);
+                    if (usemainimg) {
+                        usemainimg = false;
+                        $("#mArtBoxA").attr("src", ArtURL);
+                        $("#mArtBoxA").fadeIn(1000, reloadBorderColour());
+                    } else {
+                        usemainimg = true;
+                        $("#mArtBoxB").attr("src", ArtURL);
+                        $("#mArtBoxA").fadeOut(1000, reloadBorderColour());
+                    }
+                }
+            }
+        }
+    });
+    if (SongURL instanceof Blob) {
+        document.getElementById("musicElement").src = URL.createObjectURL(SongURL);;
+    } else {
+        document.getElementById("musicElement").src = SongURL;
+    }
+    document.getElementById("AP").load();
+}
+
+function reloadBorderColour() {
+    return;
+    var rgb = 0;
+    if (usemainimg) {
+        rgb = getAverageRGB(document.getElementById('mArtBoxA'));
+    } else {
+        rgb = getAverageRGB(document.getElementById('mArtBoxB'));
+    }
+    $("#mArtContainer").css("border-color", 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',0.1)');
+    $("#mArtOverlay").css("background-color", 'rgb(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ')');
+}
+
+function seekerChangePc(percent) {
+    var newle = percent;
+    $("#mSeeker").css("width", newle + 'px');
+}
+
+function LoadNextSong() {
+    if (songnum != songs.length) {
+        songnum++
+    } else {
+        songnum = 1;
+    }
+    changeSong(songs[songnum - 1][0], songs[songnum - 1][1], songs[songnum - 1][2], songs[songnum - 1][3])
+}
+
+function LoadPreviousSong() {
+    if (songnum == 1) {
+        songnum = songs.length;
+    } else {
+        songnum--;
+    }
+    changeSong(songs[songnum - 1][0], songs[songnum - 1][1], songs[songnum - 1][2], songs[songnum - 1][3])
+}
+
+$(document).ready(function() {
+    $('#blurredBackground').backgroundBlur({
+        imageURL: '',
+        blurAmount: 30,
+        imageClass: 'bg-blur',
+        overlayClass: 'tinted-bg-overlay',
+        duration: 1000,
+        endOpacity: 1
+    });
+    var blocked = false;
+    var vid = document.getElementById("AP");
+    vid.ontimeupdate = function() {
+        UpdateSeeker()
+    };
+    vid.onended = function() {
+        LoadNextSong();
+    }
+    $("#mArtBoxA").fadeOut(1);
+    $("#mArtBoxB").fadeOut(1);
+    $(document).keydown(function(event) {
+        if (event.which == 13) {
+            event.preventDefault();
+        }
+        if (event.keyCode == 39) {
+            LoadNextSong();
+        }
+        if (event.keyCode == 37) {
+            LoadPreviousSong();
+        }
+        if (event.keyCode == 32) {
+            if (!vid.paused) {
+                vid.pause();
+                $("#mArtOverlay").html("&#9658;");
+            } else {
+                vid.play();
+                $("#mArtOverlay").html("&#10074;&#10074;");
+            }
+        }
+    })
+
+    function UpdateSeeker() {
+        seekerChangePc(Math.ceil((vid.currentTime / vid.duration) * 400));
+    }
+
+    function PlayFirstSong() {
+        LoadNextSong();
+        $("#mArtOverlay").html("&#10074;&#10074;");
+    }
+    $("#mArtOverlay").mouseenter(function() {
+        if (blocked) {
+            return;
+        }
+        if (vid.paused) {
+            $("#mArtOverlay").html("&#9658;");
+        } else {
+            $("#mArtOverlay").html("&#10074;&#10074;");
+        }
+        $("#mArtOverlay").stop(true, true).animate({
+            opacity: 0.25
+        }, 500);
+    })
+    $("#mArtOverlay").mouseleave(function() {
+        if (blocked) {
+            return;
+        }
+        $("#mArtOverlay").stop(true, true).animate({
+            opacity: 0
+        }, 500);
+    })
+    $("#mArtOverlay").click(function() {
+        if (blocked) {
+            return;
+        }
+        if ($("#musicElement").attr('src') == "") {
+            PlayFirstSong();
+            return;
+        }
+        if (!vid.paused) {
+            vid.pause();
+            $("#mArtOverlay").html("&#9658;");
+        } else {
+            vid.play();
+            $("#mArtOverlay").html("&#10074;&#10074;");
+        }
+    })
+    var down = false;
+    $("#mSeekerContainer").mousedown(function() {
+        if (blocked) {
+            return;
+        }
+        down = true;
+    }).mouseup(function() {
+        if (blocked) {
+            return;
+        }
+        down = false;
+    });
+    $("#mSeeker").mousedown(function() {
+        if (blocked) {
+            return;
+        }
+        down = true;
+    }).mouseup(function() {
+        if (blocked) {
+            return;
+        }
+        down = false;
+    });
+    $("#mSeekerContainer").click(function(e) {
+        if (blocked) {
+            return;
+        }
+        var posX = $(this).offset().left;
+        vid.currentTime = Math.ceil(((e.pageX - posX) / 400) * vid.duration);
+    })
+    $("#mSeeker").click(function(e) {
+        if (blocked) {
+            return;
+        }
+        var posX = $(this).offset().left;
+        vid.currentTime = Math.ceil(((e.pageX - posX) / 400) * vid.duration);
+    })
+    $("#mSeekerContainer").mousemove(function(e) {
+        if (blocked) {
+            return;
+        }
+        if (down) {
+            var posX = $(this).offset().left;
+            vid.currentTime = Math.ceil(((e.pageX - posX) / 400) * vid.duration);
+        }
+    })
+    $("#mSeeker").mousemove(function(e) {
+        if (blocked) {
+            return;
+        }
+        if (down) {
+            var posX = $(this).offset().left;
+            vid.currentTime = Math.ceil(((e.pageX - posX) / 400) * vid.duration);
+        }
+    })
+    $(window).bind("fullscreen-on", function(e, state) {
+        blocked = true;
+        $("html").css("cursor", "none");
+        $("body").css("cursor", "none");
+        $("#mSeekerContainer").css("opacity", "0");
+        $("#mSeeker").css("opacity", "0");
+        $("#mArtOverlay").css("opacity", "0");
+        $("#mArtOverlay").stop(true, true).animate({
+            opacity: 0
+        }, 500);
+    });
+    $(window).bind("fullscreen-off", function(e, state) {
+        blocked = false;
+        $("html").css("cursor", "default");
+        $("body").css("cursor", "default");
+        $("#mSeekerContainer").css("opacity", "0.4");
+        $("#mSeeker").css("opacity", "1");
+        $("#mArtOverlay").css("opacity", "0");
+    });
+    $(window).filedrop({
+        callback: function(blob) {
+            songs.splice(songnum, 0, ["", blob, "", ""]);
+            songnum++;
+            changeSong("", blob)
+        }
+    })
+});
+</script>
+</head>
+
+<body id="blurredBackground">
+
+	<audio id="AP" autoplay>
+		<source id="musicElement" src="" type="audio/mpeg">
+	</audio> 
+	
+	<div class="content">
+		
+		<div id="mTagContainer"><div class="mTag">Music</div></div>
+		
+		<div id="mArtContainer">
+			<div id="mArtOverlay">&#9658;</div>
+			<img id="mArtBoxA" src="" width="500px" height="500px"/>
+			<img id="mArtBoxB" src="" width="500px" height="500px"/>
+		</div>
+		
+		<div id="mInfoContainer">
+			<div class="mTitle">HTML5 Music Player</div>
+			<div class="mArtist"> </div>
+		</div>
+		
+		<div id="mSeekerContainer">
+			<div id="mSeeker"></div>
+		</div>
+		
+	</div>
+</body>
+</html>
