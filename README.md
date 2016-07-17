@@ -2,4 +2,4 @@
 
 https://mrshamster.github.io/HTML5MusicPlayer/
 
-thought it would be cool
+drag a song onto the page from your desktop or something
